@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>인물관계설정도 (v.1.17)</title>
+    <title>인물관계도 V18</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.26.0/cytoscape.min.js"></script>
     <script src="https://unpkg.com/layout-base/layout-base.js"></script>
     <script src="https://unpkg.com/cose-base/cose-base.js"></script>
@@ -20,16 +20,16 @@
                 
                 <div class="input-group">
                     <label>👤 인물 추가</label>
-                    <input type="text" id="nodeName" placeholder="이름 (예: 홍길동)" oninput="syncFromInput(this.value)">
+                    <input type="text" id="nodeName" placeholder="이름 (예: 천성현)" oninput="syncFromInput(this.value)">
                     <input type="text" id="nodeGroup" placeholder="소속 (쉼표 구분)">
                     
                     <div class="row-inputs">
                         <div class="col" style="flex: 1;">
-                            <label style="font-size: 11px;">성별</label>
+                            <label style="font-size: 11px;">성별(도형)</label>
                             <select id="nodeGender">
-                                <option value="unspecified">미지정</option>
-                                <option value="male">남성</option>
-                                <option value="female">여성</option>
+                                <option value="unspecified">미지정 (둥근네모)</option>
+                                <option value="male">남성 (네모 □)</option>
+                                <option value="female">여성 (원 ○)</option>
                             </select>
                         </div>
                         <div class="col" style="flex: 0.8;">
@@ -52,6 +52,7 @@
 
                 <div class="input-group">
                     <label>🔗 관계 연결</label>
+                    <div class="hint">💡 <b>관계가 변하는 경우:</b> 이전 관계의 '종료 시점'을 지정하고, 변한 관계를 새로 이어주세요!</div>
                     <input type="text" id="edgeFrom" placeholder="누가">
                     <input type="text" id="edgeTo" placeholder="누구에게">
                     <input type="text" id="edgeLabel" placeholder="관계 내용 (예: 적대, 협력)">
@@ -138,13 +139,22 @@
                 <label style="font-size:12px; font-weight:bold;">이름</label> <input type="text" id="editName">
                 <label style="font-size:12px; font-weight:bold;">소속</label> <input type="text" id="editGroup">
                 
-                <div class="row-inputs" style="margin-bottom:10px;">
+                <div class="row-inputs" style="margin-bottom:15px;">
                     <div class="col"><label style="font-size:12px; font-weight:bold;">성별</label><select id="editGender"><option value="unspecified">미지정</option><option value="male">남성</option><option value="female">여성</option></select></div>
                     <div class="col" style="flex: 0.5;"><label style="font-size:12px; font-weight:bold;">색상</label><input type="color" id="editColor" style="height:34px; padding:0;"></div>
                 </div>
 
-                <label style="font-size:12px; font-weight:bold; color:var(--danger);">사망 시점 (✖표시)</label> 
-                <select id="editDeath" style="border-color: #f5b7b1;"></select>
+                <div style="background:#fff0f0; padding:10px; border-radius:6px; border:1px solid #f5b7b1; margin-bottom:15px;">
+                    <label style="font-size:12px; font-weight:bold; color:var(--danger);">생존 상태</label>
+                    <select id="editStatus" onchange="toggleDeathTime(this.value)" style="margin-bottom: 5px;">
+                        <option value="alive">생존 (Alive)</option>
+                        <option value="dead">사망 (Dead) ✝</option>
+                    </select>
+                    <div id="deathTimeBox" style="display: none;">
+                        <label style="font-size:11px; color:var(--danger);">사망한 시점</label>
+                        <select id="editDeath"></select>
+                    </div>
+                </div>
 
                 <label style="font-size:12px; font-weight:bold; color:var(--accent);">노션 URL</label> <input type="text" id="editNotion">
                 <label style="font-size:12px; font-weight:bold;">메모</label> <textarea id="editMemo" rows="3"></textarea>
@@ -161,7 +171,7 @@
         <div class="modal-content" style="position: relative;">
             <button class="close-details" onclick="closeModal()" style="top:15px; right:15px;">&times;</button>
             <h3 style="color: var(--danger); margin: 0 0 10px 0; font-size:18px;">데이터 관리</h3>
-            <p style="font-size:12px; color:var(--secondary); margin-bottom:20px;">캔버스에서 대상을 <b>선택(노란색)</b>한 뒤 누르세요.</p>
+            <p style="font-size:12px; color:var(--secondary); margin-bottom:20px;">캔버스에서 대상을 <b>선택(노란색 테두리)</b>한 뒤 누르세요.</p>
             <button class="btn" style="background:var(--danger); color:white; margin-bottom: 15px;" onclick="deleteSelected()">🗑️ 선택 항목 삭제</button>
             <hr style="border:0; border-top:1px solid var(--border); margin:20px 0;">
             <button class="btn" style="background:transparent; border:1px solid var(--danger); color:var(--danger);" onclick="clearAll()">전체 초기화 (영구 삭제)</button>
