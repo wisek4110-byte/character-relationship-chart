@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>인물관계설정도 (v.1.17)</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.26.0/cytoscape.min.js"></script>
+    <script src="https://unpkg.com/layout-base/layout-base.js"></script>
+    <script src="https://unpkg.com/cose-base/cose-base.js"></script>
+    <script src="https://unpkg.com/cytoscape-fcose/cytoscape-fcose.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/file-saver.js/2.0.5/FileSaver.min.js"></script>
+    
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="sidebar collapsed" id="sidebar">
+        <div class="sidebar-inner">
+            <div class="sidebar-header">🛠️ 설정 패널</div>
+            <div class="sidebar-content">
+                
+                <div class="input-group">
+                    <label>👤 인물 추가</label>
+                    <input type="text" id="nodeName" placeholder="이름 (예: 홍길동)" oninput="syncFromInput(this.value)">
+                    <input type="text" id="nodeGroup" placeholder="소속 (쉼표 구분)">
+                    
+                    <div class="row-inputs">
+                        <div class="col" style="flex: 1;">
+                            <label style="font-size: 11px;">성별</label>
+                            <select id="nodeGender">
+                                <option value="unspecified">미지정</option>
+                                <option value="male">남성</option>
+                                <option value="female">여성</option>
+                            </select>
+                        </div>
+                        <div class="col" style="flex: 0.8;">
+                            <label style="font-size: 11px; display:flex; justify-content:space-between; align-items:center;">
+                                <span>색상</span>
+                                <label style="font-size:10px; font-weight:normal; cursor:pointer;">
+                                    <input type="checkbox" id="autoColorCheck" checked onchange="document.getElementById('nodeColor').disabled = this.checked;"> 자동
+                                </label>
+                            </label>
+                            <input type="color" id="nodeColor" value="#558AB8" style="height: 34px; padding: 0;" disabled>
+                        </div>
+                    </div>
+                    
+                    <label style="font-size: 12px; margin-top:10px; color:var(--accent);">🔗 노션 URL (선택)</label>
+                    <input type="text" id="nodeNotion" placeholder="https://notion.so/...">
+                    
+                    <textarea id="nodeMemo" placeholder="간단한 메모" rows="2"></textarea>
+                    <button class="btn btn-primary" onclick="addCharacter()">인물 단독 등록</button>
+                </div>
+
+                <div class="input-group">
+                    <label>🔗 관계 연결</label>
+                    <input type="text" id="edgeFrom" placeholder="누가">
+                    <input type="text" id="edgeTo" placeholder="누구에게">
+                    <input type="text" id="edgeLabel" placeholder="관계 내용 (예: 적대, 협력)">
+                    
+                    <label style="font-size: 11px; margin-top:10px;">선의 모양</label>
+                    <div class="visual-radios">
+                        <label class="visual-radio"><input type="radio" name="edgeStyle" value="style-regular" checked><div class="radio-card"><div class="line-preview regular"></div><span>일반</span></div></label>
+                        <label class="visual-radio"><input type="radio" name="edgeStyle" value="style-thick"><div class="radio-card"><div class="line-preview thick"></div><span>강조</span></div></label>
+                        <label class="visual-radio"><input type="radio" name="edgeStyle" value="style-dashed"><div class="radio-card"><div class="line-preview dashed"></div><span>점선</span></div></label>
+                        <label class="visual-radio"><input type="radio" name="edgeStyle" value="style-conflict"><div class="radio-card"><div class="line-preview conflict"></div><span style="color:#e03e3e; font-weight:bold;">갈등</span></div></label>
+                    </div>
+
+                    <label style="font-size: 11px; margin-top:10px;">관계 방향성</label>
+                    <div class="direction-radios">
+                        <label><input type="radio" name="edgeDirection" value="directed" checked> ➔ 단방향</label>
+                        <label><input type="radio" name="edgeDirection" value="bidirected"> ⬌ 양방향</label>
+                    </div>
+
+                    <div class="row-inputs" style="margin-top: 10px;">
+                        <div class="col">
+                            <label style="font-size: 11px;">시작 시점</label>
+                            <select id="edgeStart"></select>
+                        </div>
+                        <div class="col">
+                            <label style="font-size: 11px;">종료 시점 (선택)</label>
+                            <select id="edgeEnd"></select>
+                        </div>
+                    </div>
+
+                    <button class="btn btn-secondary" onclick="addRelationship()" style="margin-top:15px;">선 연결하기</button>
+                </div>
+
+                <div class="input-group">
+                    <label>⏱️ 새로운 시간선(시점) 추가</label>
+                    <input type="text" id="newTimePoint" placeholder="예: 20화, 30화...">
+                    <button class="btn btn-secondary" onclick="addTimePoint()">시점 추가하기</button>
+                </div>
+
+                <div class="input-group" style="border:none; box-shadow:none; padding:0; background:transparent;">
+                    <label>🔍 인물 중심 시점 (POV)</label>
+                    <button class="btn btn-primary" onclick="focusPOV()" style="margin-bottom:8px; background:#4b5563;">시점 집중 켜기</button>
+                    <button class="btn btn-secondary" onclick="resetPOV()">필터 끄기</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <button class="toggle-btn" onclick="toggleSidebar()"><span class="arrow-icon">◀</span></button>
+
+    <div class="main-container">
+        <div class="toolbar">
+            <button class="tool-btn" onclick="fitCanvas()">🎯 화면 맞춤</button>
+            <button class="tool-btn" onclick="autoArrange()">✨ 착착 정렬</button>
+            <button class="tool-btn" onclick="downloadImage()">💾 이미지 저장</button>
+            <button class="tool-btn" onclick="openModal()" style="color:var(--danger)">⚙️ 관리</button>
+        </div>
+        <div id="cy"></div>
+
+        <div class="timeline-bar">
+            <strong style="color:var(--primary)">⏱️ 시간선</strong>
+            <input type="range" id="timelineRange" min="1" max="1" value="1" oninput="updateTimelineDisplay(this.value)">
+            <span id="chapterDisplay" style="color:var(--primary); font-weight:600; min-width: 80px; text-align:right;">기본 설정</span>
+        </div>
+    </div>
+
+    <div id="detailsPanel" class="details-panel">
+        <div class="details-content" id="panelContentBlock">
+            <button class="close-details" onclick="closeDetails()">&times;</button>
+            
+            <div class="view-mode-only">
+                <h2 id="detailName" style="margin: 0 0 10px 0; font-size: 22px;">이름</h2>
+                <div class="tag-container" id="detailGroupTags"></div>
+                <h4 style="margin: 20px 0 8px 0; font-size: 13px; color: var(--secondary);">📝 메모</h4>
+                <div id="detailMemo" class="memo-box">내용 없음</div>
+                <div style="display:flex; gap:10px;">
+                    <button id="btnNotion" class="btn btn-secondary" style="display:none; flex:1;" onclick="">↗ 노션 이동</button>
+                    <button class="btn btn-primary" style="flex:1;" onclick="toggleEditMode(true)">✏️ 수정</button>
+                </div>
+            </div>
+
+            <div class="edit-mode-only">
+                <h2 style="margin: 0 0 15px 0; font-size: 18px;">정보 수정</h2>
+                <input type="hidden" id="editOriginalId">
+                <label style="font-size:12px; font-weight:bold;">이름</label> <input type="text" id="editName">
+                <label style="font-size:12px; font-weight:bold;">소속</label> <input type="text" id="editGroup">
+                
+                <div class="row-inputs" style="margin-bottom:10px;">
+                    <div class="col"><label style="font-size:12px; font-weight:bold;">성별</label><select id="editGender"><option value="unspecified">미지정</option><option value="male">남성</option><option value="female">여성</option></select></div>
+                    <div class="col" style="flex: 0.5;"><label style="font-size:12px; font-weight:bold;">색상</label><input type="color" id="editColor" style="height:34px; padding:0;"></div>
+                </div>
+
+                <label style="font-size:12px; font-weight:bold; color:var(--danger);">사망 시점 (✖표시)</label> 
+                <select id="editDeath" style="border-color: #f5b7b1;"></select>
+
+                <label style="font-size:12px; font-weight:bold; color:var(--accent);">노션 URL</label> <input type="text" id="editNotion">
+                <label style="font-size:12px; font-weight:bold;">메모</label> <textarea id="editMemo" rows="3"></textarea>
+                
+                <div style="display:flex; gap:10px; margin-top:20px;">
+                    <button class="btn btn-secondary" style="flex:1;" onclick="toggleEditMode(false)">취소</button>
+                    <button class="btn btn-primary" style="flex:1;" onclick="saveEdits()">💾 저장</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="manageModal" class="modal-overlay">
+        <div class="modal-content" style="position: relative;">
+            <button class="close-details" onclick="closeModal()" style="top:15px; right:15px;">&times;</button>
+            <h3 style="color: var(--danger); margin: 0 0 10px 0; font-size:18px;">데이터 관리</h3>
+            <p style="font-size:12px; color:var(--secondary); margin-bottom:20px;">캔버스에서 대상을 <b>선택(노란색)</b>한 뒤 누르세요.</p>
+            <button class="btn" style="background:var(--danger); color:white; margin-bottom: 15px;" onclick="deleteSelected()">🗑️ 선택 항목 삭제</button>
+            <hr style="border:0; border-top:1px solid var(--border); margin:20px 0;">
+            <button class="btn" style="background:transparent; border:1px solid var(--danger); color:var(--danger);" onclick="clearAll()">전체 초기화 (영구 삭제)</button>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
