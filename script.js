@@ -1,7 +1,6 @@
 let timelinePoints = ['기본 설정'];
 let groupColors = {}; 
 
-// [✨ 황금비 색상 분배기 (자동 배정용)]
 let goldenHue = Math.random();
 function generateDistinctColor() {
     goldenHue += 0.618033988749895; 
@@ -10,7 +9,7 @@ function generateDistinctColor() {
 }
 
 function getGroupColor(groupName, isMain) {
-    if (isMain === '천성현') return '#ea7271'; // 주인공 고정색
+    if (isMain === '천성현') return '#ea7271'; 
     if (!groupName) return generateDistinctColor();
     if (!groupColors[groupName]) groupColors[groupName] = generateDistinctColor(); 
     return groupColors[groupName];
@@ -21,10 +20,15 @@ const deathIcon = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/sv
 function syncFromInput(val) { document.getElementById('edgeFrom').value = val; }
 function toggleSidebar() { document.getElementById('sidebar').classList.toggle('collapsed'); setTimeout(() => { cy.resize(); }, 300); }
 
+// UI 생존/사망 토글
+function toggleDeathTime(status) {
+    document.getElementById('deathTimeBox').style.display = status === 'dead' ? 'block' : 'none';
+}
+
 const layoutConfig = {
     name: 'fcose', quality: 'proof', animate: true, animationDuration: 800,
     nodeDimensionsIncludeLabels: true, randomize: false, 
-    nodeRepulsion: node => 1000000, idealEdgeLength: edge => 120, 
+    nodeRepulsion: node => 1000000, idealEdgeLength: edge => 140, 
     gravity: 0.1, nodeSeparation: 80, packComponents: true
 };
 
@@ -63,22 +67,20 @@ let cy = cytoscape({
         { selector: '.style-thick', style: { 'width': 6, 'font-size': '13px' }},
         { selector: '.style-dashed', style: { 'line-style': 'dashed', 'line-dash-pattern': [6, 6] }},
         
-        /* ✨ 수학적으로 W 지그재그를 완벽 구현한 갈등 선 */
+        /* ✨ W 지그재그를 다중선에 맞춰 밀어내기 적용 (segDist 데이터 활용) */
         { selector: '.style-conflict', style: { 
             'curve-style': 'segments',
-            'segment-weights': '0.125 0.25 0.375 0.5 0.625 0.75 0.875', /* 선을 8등분 */
-            'segment-distances': '12 -12 12 -12 12 -12 12', /* 위 아래로 12px씩 꺾임 */
+            'segment-weights': '0.125 0.25 0.375 0.5 0.625 0.75 0.875',
+            'segment-distances': function(ele){ return ele.data('segDist') || '15 -15 15 -15 15 -15 15'; }, 
             'line-color': '#e03e3e', 'target-arrow-color': '#e03e3e', 'target-arrow-shape': 'triangle',
             'color': '#e03e3e', 'width': 2, 'font-size': '13px', 'font-weight': 'bold',
             'text-background-color': '#fff0f0'
         }},
         
-        /* 다중 소속선 */
         { selector: '.affiliation-edge', style: { 'line-style': 'dashed', 'line-dash-pattern': [4, 4], 'width': 3, 'line-color': '#9b59b6', 'target-arrow-color': '#9b59b6', 'target-arrow-shape': 'circle', 'color': '#9b59b6', 'font-size': '11px' }},
         
-        /* 🔀 양방향 처리 */
         { selector: '.bidir', style: { 'source-arrow-shape': 'triangle', 'source-arrow-color': 'data(line_color_override)' }},
-        { selector: '.style-conflict.bidir', style: { 'source-arrow-color': '#e03e3e' } }, // 갈등선은 양방향도 빨간색
+        { selector: '.style-conflict.bidir', style: { 'source-arrow-color': '#e03e3e' } }, 
         
         { selector: ':selected', style: { 'border-width': 4, 'border-color': '#eeb868', 'line-color': '#eeb868', 'target-arrow-color': '#eeb868', 'source-arrow-color': '#eeb868' }},
         { selector: '.pov-dim', style: { 'opacity': 0.15, 'grayscale': 1 } },
@@ -87,12 +89,33 @@ let cy = cytoscape({
     ]
 });
 
-// 양방향 화살표 색상 동기화를 위한 해킹
+// 양방향 색상 해킹
 cy.on('add', 'edge', function(evt){
     let edge = evt.target;
     if(edge.hasClass('style-conflict')) edge.data('line_color_override', '#e03e3e');
     else edge.data('line_color_override', '#a3a19a');
 });
+
+// [✨ 선 겹침 완벽 차단 수학적 오프셋 계산기]
+function calculateEdgeOffset(from, to) {
+    let edges = cy.edges(`[source="${from}"][target="${to}"], [source="${to}"][target="${from}"]`);
+    let count = edges.length;
+    if (count === 0) return 40; // 첫 번째 선
+    let sign = count % 2 === 0 ? 1 : -1;
+    let step = 40 + Math.floor(count / 2) * 40; // 40, -40, 80, -80, 120...
+    return sign * step;
+}
+
+// 갈등선(W)의 지그재그 배열 생성
+function getConflictSegDist(baseOffset) {
+    let dists = [];
+    let toggle = 15; // W모양의 꺾임 폭
+    for(let i=0; i<7; i++) {
+        dists.push(baseOffset + toggle);
+        toggle = -toggle;
+    }
+    return dists.join(' ');
+}
 
 function getShapeByGender(gender) {
     if(gender === 'male') return 'rectangle';
@@ -110,7 +133,6 @@ function clearInputForms() {
     document.getElementById('edgeTo').value = '';
     document.getElementById('edgeLabel').value = ''; 
     
-    // 라디오 버튼 초기화
     document.querySelector('input[name="edgeStyle"][value="style-regular"]').checked = true; 
     document.querySelector('input[name="edgeDirection"][value="directed"]').checked = true; 
     
@@ -136,7 +158,7 @@ function updateAffiliations(nodeId, secondaryGroups) {
     cy.edges(`edge[source="${nodeId}"][type="affiliation"]`).remove(); 
     secondaryGroups.forEach(sg => {
         ensureGroupExists(sg);
-        cy.add({ data: { id: `${nodeId}-affil-${sg}`, source: nodeId, target: sg, label: '이중소속', type: 'affiliation', cpd: (Math.random()-0.5)*100 }, classes: 'affiliation-edge' });
+        cy.add({ data: { id: `${nodeId}-affil-${sg}`, source: nodeId, target: sg, label: '이중소속', type: 'affiliation', cpd: -50 }, classes: 'affiliation-edge' });
     });
 }
 
@@ -160,7 +182,7 @@ function autoAddCharacter(targetName, isFromForm = false) {
     ensureGroupExists(primaryGroup);
 
     cy.add({ 
-        data: { id: targetName, label: targetName, parent: primaryGroup, allGroups: groups, notion: notion, memo: memo, color: finalColor, gender: gender, shape: getShapeByGender(gender), deathIdx: -1 },
+        data: { id: targetName, label: targetName, parent: primaryGroup, allGroups: groups, notion: notion, memo: memo, color: finalColor, gender: gender, shape: getShapeByGender(gender), deathIdx: -1, status: 'alive' },
         position: getSmartSpawnPosition(primaryGroup)
     });
 
@@ -193,13 +215,15 @@ function addRelationship() {
     if (cy.getElementById(from).length === 0) autoAddCharacter(from, from === document.getElementById('nodeName').value.trim());
     if (cy.getElementById(to).length === 0) autoAddCharacter(to);
 
-    let cpdVal = (Math.random() > 0.5 ? 1 : -1) * (40 + Math.random() * 60);
+    // ✨ 선 겹침 차단: 이미 몇 개의 선이 있는지 파악 후 오프셋 적용
+    let cpdVal = calculateEdgeOffset(from, to);
+    let segDistVal = getConflictSegDist(cpdVal);
     
     let classesArray = [styleClass];
-    if (isBidir) classesArray.push('bidir'); // 양방향 클래스 추가
+    if (isBidir) classesArray.push('bidir');
 
     cy.add({ 
-        data: { source: from, target: to, label: label, startIdx: startIdx, endIdx: endIdx, cpd: cpdVal }, 
+        data: { source: from, target: to, label: label, startIdx: startIdx, endIdx: endIdx, cpd: cpdVal, segDist: segDistVal }, 
         classes: classesArray.join(' ') 
     });
     
@@ -211,7 +235,7 @@ function autoArrange() {
     let selected = cy.$(':selected');
     if(selected.length > 0 && selected[0].isNode() && !selected[0].isParent()) {
         let centerNode = selected[0];
-        cy.layout({ name: 'concentric', fit: true, animate: true, animationDuration: 500, nodeDimensionsIncludeLabels: true, minNodeSpacing: 60, concentric: function(node) { if (node.id() === centerNode.id()) return 3; if (node.edgesWith(centerNode).length > 0) return 2; return 1; }, levelWidth: function() { return 1; } }).run();
+        cy.layout({ name: 'concentric', fit: true, animate: true, animationDuration: 500, nodeDimensionsIncludeLabels: true, minNodeSpacing: 80, concentric: function(node) { if (node.id() === centerNode.id()) return 3; if (node.edgesWith(centerNode).length > 0) return 2; return 1; }, levelWidth: function() { return 1; } }).run();
     } else {
         cy.layout(layoutConfig).run();
     }
@@ -229,7 +253,7 @@ function syncTimelineUI() {
     let endSel = document.getElementById('edgeEnd');
     let deathSel = document.getElementById('editDeath');
     
-    startSel.innerHTML = ''; endSel.innerHTML = '<option value="-1">계속 유지 (종료 안됨)</option>'; deathSel.innerHTML = '<option value="-1">살아있음 (사망 안함)</option>';
+    startSel.innerHTML = ''; endSel.innerHTML = '<option value="-1">계속 유지 (종료 안됨)</option>'; deathSel.innerHTML = '';
 
     timelinePoints.forEach((pt, idx) => { 
         let opt = `<option value="${idx}">${pt}</option>`;
@@ -254,9 +278,10 @@ function updateTimelineDisplay(val) {
 
     cy.nodes().forEach(node => {
         if(node.isParent() || node.hasClass('group-box')) return;
+        let status = node.data('status') || 'alive';
         let death = node.data('deathIdx') !== undefined ? node.data('deathIdx') : -1;
         
-        if(death !== -1 && currentIdx >= death) { node.addClass('node-dead'); } 
+        if(status === 'dead' && death !== -1 && currentIdx >= death) { node.addClass('node-dead'); } 
         else { node.removeClass('node-dead'); }
     });
 }
@@ -290,12 +315,18 @@ function populateDetailsPanel(node) {
     else { groups.forEach((g, idx) => { tagHTML += `<span class="tag ${idx === 0 ? 'primary' : ''}">${g}${idx===0 ? ' (메인)' : ''}</span>`; }); }
     document.getElementById('detailGroupTags').innerHTML = tagHTML;
 
+    // 수정 폼 동기화
     document.getElementById('editOriginalId').value = node.data('id');
     document.getElementById('editName').value = node.data('label') || node.data('id');
     document.getElementById('editGroup').value = groups.join(', ');
     document.getElementById('editGender').value = node.data('gender') || 'unspecified';
     document.getElementById('editColor').value = node.data('color') || '#9fa6b2';
-    document.getElementById('editDeath').value = node.data('deathIdx') !== undefined ? node.data('deathIdx') : '-1';
+    
+    let status = node.data('status') || 'alive';
+    document.getElementById('editStatus').value = status;
+    toggleDeathTime(status);
+    if(node.data('deathIdx') !== undefined) document.getElementById('editDeath').value = node.data('deathIdx');
+
     document.getElementById('editNotion').value = node.data('notion') || '';
     document.getElementById('editMemo').value = node.data('memo') || '';
     
@@ -313,7 +344,10 @@ function saveEdits() {
     let newGroupsStr = document.getElementById('editGroup').value.trim();
     let newGender = document.getElementById('editGender').value;
     let newColor = document.getElementById('editColor').value;
+    
+    let newStatus = document.getElementById('editStatus').value;
     let newDeath = parseInt(document.getElementById('editDeath').value);
+    
     let newNotion = document.getElementById('editNotion').value.trim();
     let newMemo = document.getElementById('editMemo').value.trim();
 
@@ -326,7 +360,8 @@ function saveEdits() {
     
     currentNode.data({
         'label': newName, 'allGroups': newGroups, 'notion': newNotion, 'memo': newMemo,
-        'gender': newGender, 'shape': getShapeByGender(newGender), 'color': newColor, 'deathIdx': newDeath
+        'gender': newGender, 'shape': getShapeByGender(newGender), 'color': newColor, 
+        'status': newStatus, 'deathIdx': newStatus === 'dead' ? newDeath : -1
     });
     
     if (currentNode.data('parent') !== newPrimary) { currentNode.move({ parent: newPrimary }); }
@@ -342,16 +377,16 @@ function resetPOV() { cy.elements().removeClass('pov-dim pov-focus pov-center');
 function openModal() { document.getElementById('manageModal').style.display = 'flex'; }
 function closeModal() { document.getElementById('manageModal').style.display = 'none'; }
 function deleteSelected() { let sel = cy.$(':selected'); if (sel.length === 0) return alert("삭제 대상을 클릭해주세요."); sel.remove(); saveData(); closeModal(); closeDetails(); }
-function clearAll() { if(confirm('전체 데이터를 삭제하시겠습니까?')) { cy.elements().remove(); timelinePoints=['기본 설정']; localStorage.removeItem('novel_v17_data'); syncTimelineUI(); document.getElementById('timelineRange').value=1; updateTimelineDisplay(1); groupColors={}; goldenHue=Math.random(); closeModal(); } }
+function clearAll() { if(confirm('전체 데이터를 삭제하시겠습니까?')) { cy.elements().remove(); timelinePoints=['기본 설정']; localStorage.removeItem('novel_v18_data'); syncTimelineUI(); document.getElementById('timelineRange').value=1; updateTimelineDisplay(1); groupColors={}; goldenHue=Math.random(); closeModal(); } }
 function downloadImage() { let png = cy.png({ full: true, bg: '#f7f6f3', scale: 2 }); let link = document.createElement('a'); link.download = `인물관계도.png`; link.href = png; link.click(); }
 
 function saveData() {
     let data = cy.elements().map(ele => ({ group: ele.group(), data: ele.data(), position: ele.position(), classes: ele.classes().join(' ') }));
-    localStorage.setItem('novel_v17_data', JSON.stringify({ elements: data, timeline: timelinePoints }));
+    localStorage.setItem('novel_v18_data', JSON.stringify({ elements: data, timeline: timelinePoints }));
 }
 
 window.onload = () => {
-    let saved = localStorage.getItem('novel_v17_data');
+    let saved = localStorage.getItem('novel_v18_data');
     if (saved) { 
         let parsed = JSON.parse(saved);
         if(parsed.timeline) timelinePoints = parsed.timeline;
